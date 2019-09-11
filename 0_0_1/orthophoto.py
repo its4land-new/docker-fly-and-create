@@ -146,6 +146,8 @@ def to_odm_args(args: Dict, image_max_side_size: int) -> Dict:
 
     return defaults
 
+def upload_results():
+    pass
 
 def start(args: Dict) -> None:
     """Run orthophoto creation."""
@@ -163,6 +165,8 @@ def start(args: Dict) -> None:
 
         app = ODMApp(odm_args)
         app.execute()
+
+        upload_results()
 
     except Exception as err:
         # TODO better error handling
