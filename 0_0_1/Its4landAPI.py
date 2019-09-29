@@ -240,23 +240,24 @@ class Its4landAPI:
                             descr: Optional[str],
                             spatial_source_type: str = 'File',
                             ):
-        url = urljoin(self.url, 'contentitem')
 
-        resp = self.post(url, files={
-            'newcontent': file,
-        })
+        resp = self.post(
+                         None,
+                         url=urljoin(self.url, 'contentitems'),
+                         files={
+                             'newcontent': file,
+                         }
+        )
 
-        path = os.path.join('projects', project_id, 'spatial_source')
+        path = os.path.join('projects', project_id, 'SpatialSources')
 
-        url = urljoin(self.url, path)
-
-        return self.post(url, {
-            "Type": spatial_source_type,
-            "Description": descr,
-            "ContentItem": resp['ContentItemId'],
-            "Tags": tags,
-            "Name": name,
-        })
+        return self.post({
+            'Type': spatial_source_type,
+            'Description': descr,
+            'ContentItem': resp['ContentID'],
+            'Tags': tags,
+            'Name': name,
+        }, encode_as='json', url=urljoin(self.url, path))
 
 
     def download_content_item(self, uid: str, filename: str):

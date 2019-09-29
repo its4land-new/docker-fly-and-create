@@ -1,24 +1,26 @@
 """Orthophoto tool ODM"""
 
 from typing import Dict
-
-import argparse
 import os
+import argparse
 import multiprocessing
 import zipfile
+import traceback
+
 import imageio
 
 from Its4landAPI import Its4landAPI
 
-# from stages.odm_app import ODMApp
+try:
+    from stages.odm_app import ODMApp
+except:
+    class ODMApp():
+        def __init__(self, args):
+            print(args)
+            pass
 
-class ODMApp():
-    def __init__(self, args):
-        print(args)
-        pass
-
-    def execute(self):
-        pass
+        def execute(self):
+            pass
 
 # sample call:
 # python3 orthophoto.py --texturing-nadir-weight urban --content-item-id 50c4e5fe-0017-4dc3-93a6-983896839efa
@@ -49,16 +51,22 @@ def unzip(file: str, dest: str) -> None:
 
 def get_image_properties(dirname: str) -> Dict:
     """Get image properties like size etc."""
-    image_filename = None
+    image_basename = None
 
     for file in os.listdir(dirname):
-        if file.endswith('.jpg') or file.endswith('.JPG') or file.endswith('.jpeg') or file.endswith('.JPEG'):
-            image_filename = file
+        if (
+            file.endswith('.jpg') or
+            file.endswith('.jpeg') or
+            file.endswith('.JPG') or
+            file.endswith('.JPEG')
+        ):
+            image_basename = file
             break
 
-    assert image_filename
+    assert image_basename
 
-    width, height = imageio.imread(os.path.join(dirname, image_filename)).shape[:2]
+    image_filename = os.path.join(dirname, image_basename)
+    width, height = imageio.imread(image_filename).shape[:2]
 
     return {
         'width': width,
@@ -171,6 +179,18 @@ def to_odm_args(args: Dict, image_max_side_size: int) -> Dict:
 def upload_results():
     """Upload files to their final destination on the platform."""
 
+    api = Its4landAPI(url=PLATFORM_URL, api_key=PLATFORM_API_KEY)
+
+    api.session_token = 'token'
+    api.upload_spatial_source(
+        file=os.path.join(WORK_VOLUME, 'output.tif'),
+        spatial_source_type='orthophoto',
+        tags=['orthophoto'],
+        project_id='8d377f30-d244-41b9-9f97-39a711b4679a',
+        name='Fly&Create Orthophoto',
+        descr='Orthophoto was generated at %s' % 'xxxx-xx-xx'
+    )
+
     pass
 
 
@@ -194,12 +214,15 @@ def start(args: Dict) -> None:
         app = ODMApp(odm_args)
         app.execute()
 
-        upload_results()
+        results = upload_results()
+
+        print(results)
 
     except Exception as err:
         # TODO better error handling
         print('Oopsie!')
         print(err)
+        traceback.print_exc()
         exit(1)
 
 
