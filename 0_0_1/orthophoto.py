@@ -1,24 +1,33 @@
 """Orthophoto tool ODM"""
 
-from typing import (Dict)
+from typing import Dict
 
 import argparse
 import os
 import multiprocessing
+import zipfile
+import imageio
+
 from Its4landAPI import Its4landAPI
 
 # from stages.odm_app import ODMApp
 
-def ODMApp(args):
-    print(args)
-    pass
+class ODMApp():
+    def __init__(self, args):
+        print(args)
+        pass
+
+    def execute(self):
+        pass
+
+# sample call:
+# python3 orthophoto.py --texturing-nadir-weight urban --content-item-id 50c4e5fe-0017-4dc3-93a6-983896839efa
 
 
 WORK_VOLUME = '/data'
-WORK_VOLUME = '.'
-PLATFORM_URL = 'http://i4ldev1dmz.hansaluftbild.de/sub/'
+WORK_VOLUME = './data'
+PLATFORM_URL = 'https://platform.its4land.com/api/'
 PLATFORM_API_KEY = '1'
-BD_HARDCODED_BASEMAP_UID = 'ece25171-6137-4514-94e4-b36006baf97a'
 
 
 def download(url: str, dest: str) -> str:
@@ -34,14 +43,26 @@ def download(url: str, dest: str) -> str:
 
 def unzip(file: str, dest: str) -> None:
     """Unzip specified file to a destination."""
-    pass
+    with zipfile.ZipFile(file, 'r') as zip_ref:
+        zip_ref.extractall(dest)
 
 
-def get_image_properties(file: str) -> Dict:
+def get_image_properties(dirname: str) -> Dict:
     """Get image properties like size etc."""
+    image_filename = None
+
+    for file in os.listdir(dirname):
+        if file.endswith('.jpg') or file.endswith('.JPG') or file.endswith('.jpeg') or file.endswith('.JPEG'):
+            image_filename = file
+            break
+
+    assert image_filename
+
+    width, height = imageio.imread(os.path.join(dirname, image_filename)).shape[:2]
+
     return {
-        'width': 1000,
-        'height': 1000,
+        'width': width,
+        'height': height,
     }
 
 
@@ -146,19 +167,26 @@ def to_odm_args(args: Dict, image_max_side_size: int) -> Dict:
 
     return defaults
 
+
 def upload_results():
+    """Upload files to their final destination on the platform."""
+
     pass
+
 
 def start(args: Dict) -> None:
     """Run orthophoto creation."""
     try:
-        download_file = os.path.join(WORK_VOLUME, 'download', 'image.tif')
-        extracted_dir = os.path.join(WORK_VOLUME, 'extracted')
+        if not os.path.isdir(WORK_VOLUME):
+            os.mkdir(WORK_VOLUME)
 
-        download(BD_HARDCODED_BASEMAP_UID, download_file)
-        unzip(download_file, extracted_dir)
+        downloaded_filename = os.path.join(WORK_VOLUME, 'images.zip')
+        extracted_dirname = os.path.join(WORK_VOLUME, 'extracted')
 
-        image_props = get_image_properties(download_file)
+        # download(args['content_item_id'], downloaded_filename)
+        unzip(downloaded_filename, extracted_dirname)
+
+        image_props = get_image_properties(extracted_dirname)
         image_max_side_size = max(image_props['width'], image_props['height'])
 
         odm_args = to_odm_args(args, image_max_side_size=image_max_side_size)
@@ -191,7 +219,7 @@ if __name__ == '__main__':
                             'BRUTE_FORCE',
                             'PATCH_MATCH',
                             'PATCH_MATCH_SAMPLE'
-                            ),
+                        ),
                         help='Raw depthmap computation algorithm. PATCH_MATCH '
                              'and PATCH_MATCH_SAMPLE are faster, but might '
                              'miss some valid points. BRUTE_FORCE takes '
@@ -227,6 +255,9 @@ if __name__ == '__main__':
                         help='Minimum number of features to extract per '
                              'image. More features leads to better results '
                              'but slower execution. Default: 10000')
+    parser.add_argument('--content-item-id', type=str, required=True,
+                        help='spatial-source storing the .zip file with all'
+                             'the flight images.')
 
     args = parser.parse_args()
 

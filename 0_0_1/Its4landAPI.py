@@ -24,11 +24,12 @@ License:
 
 """
 
-from typing import Any, Optional, Dict
+from typing import (Any, Optional, Dict, List)
 from enum import Enum
-from urllib.parse import urljoin, quote
+from urllib.parse import (urljoin, quote)
+import os
 
-from requests import request, exceptions
+from requests import (request, exceptions)
 
 DEBUG = False
 
@@ -230,12 +231,45 @@ class Its4landAPI:
             'uid': uid
         }, url=urljoin(self.url, 'contentitems'))
 
+    def upload_spatial_source(
+                            self,
+                            project_id: str,
+                            file: Any,
+                            tags: Optional[List[str]],
+                            name: str,
+                            descr: Optional[str],
+                            spatial_source_type: str = 'File',
+                            ):
+        url = urljoin(self.url, 'contentitem')
+
+        resp = self.post(url, files={
+            'newcontent': file,
+        })
+
+        path = os.path.join('projects', project_id, 'spatial_source')
+
+        url = urljoin(self.url, path)
+
+        return self.post(url, {
+            "Type": spatial_source_type,
+            "Description": descr,
+            "ContentItem": resp['ContentItemId'],
+            "Tags": tags,
+            "Name": name,
+        })
+
+
     def download_content_item(self, uid: str, filename: str):
         url = urljoin(self.url, 'contentitems/%s' % quote(uid, safe=''))
 
         return self.download_file(None, url=url, filename=filename)
 
-    def download_file(self, data: Optional[Payload], filename: str, **rest) -> str:
+    def download_file(
+                      self,
+                      data: Optional[Payload],
+                      filename: str,
+                      **rest
+    ) -> str:
         resp = self.get(data, response_type=ResponseType.stream, **rest)
 
         with open(filename, 'wb') as f:
