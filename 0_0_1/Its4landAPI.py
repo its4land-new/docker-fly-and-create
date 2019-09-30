@@ -141,7 +141,7 @@ class Its4landAPI:
             if self.session_token:
                 headers['X-Session-Token'] = self.session_token
 
-            send_data: Dict[str, Any] = {
+            send_data = {
                 'stream': (response_type == ResponseType.stream),
                 'headers': headers,
             }
