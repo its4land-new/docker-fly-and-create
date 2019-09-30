@@ -143,7 +143,7 @@ def start(args: Dict) -> None:
         print(os.listdir())
 
         downloaded_filename = os.path.join(WORK_VOLUME, 'images.zip')
-        extracted_dirname = './images'
+        extracted_dirname = os.path.join('.', 'images')
 
         download(args['content_item_id'], downloaded_filename)
         unzip(downloaded_filename, extracted_dirname)
