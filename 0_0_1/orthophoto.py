@@ -16,11 +16,13 @@ from Its4landAPI import Its4landAPI, Its4landException
 # sample call:
 # python3 orthophoto.py --texturing-nadir-weight urban --content-item-id 50c4e5fe-0017-4dc3-93a6-983896839efa --project-id 8d377f30-d244-41b9-9f97-39a711b4679a
 
-
 WORK_VOLUME = '/code'
 # WORK_VOLUME = './dataset'
 PLATFORM_URL = 'https://platform.its4land.com/api/'
 PLATFORM_API_KEY = '1'
+
+if 'I4L_PROJECTUID' in os.environ:
+    PLATFORM_URL = os.environ['I4L_PROJECTUID']
 
 
 def download(url: str, dest: str) -> str:
@@ -144,6 +146,8 @@ def start(args: Dict) -> None:
         if not os.path.isdir(WORK_VOLUME):
             os.mkdir(WORK_VOLUME)
 
+        project_id = args['project_id'] if 'project_id' in args else os.environ['I4L_PROJECTUID']
+
         downloaded_filename = os.path.join(WORK_VOLUME, 'images.zip')
         extracted_dirname = os.path.join('.', 'images')
 
@@ -162,7 +166,7 @@ def start(args: Dict) -> None:
         if returncode != 0:
             raise Exception('Called ODM and received return code: %s' % str(returncode))
 
-        results = upload_results(args['project_id'])
+        results = upload_results(project_id)
 
         print('Successfully uploaded')
         print(results)
@@ -237,7 +241,7 @@ def parse_args():
     parser.add_argument('--content-item-id', type=str, required=True,
                         help='spatial-source storing the .zip file with all'
                              'the flight images.')
-    parser.add_argument('--project-id', type=str, required=True,
+    parser.add_argument('--project-id', type=str,
                         help='Project id.')
 
     args = parser.parse_args()
