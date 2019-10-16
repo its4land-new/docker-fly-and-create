@@ -1,31 +1,24 @@
 """Orthophoto tool ODM"""
 
-from typing import Dict
-
-import argparse
+from typing import (Dict, List, Any)
 import os
-import multiprocessing
+import argparse
 import zipfile
+import traceback
+import subprocess
+import datetime
+
 import imageio
 
-from Its4landAPI import Its4landAPI
+from Its4landAPI import Its4landAPI, Its4landException
 
-# from stages.odm_app import ODMApp
-
-class ODMApp():
-    def __init__(self, args):
-        print(args)
-        pass
-
-    def execute(self):
-        pass
 
 # sample call:
-# python3 orthophoto.py --texturing-nadir-weight urban --content-item-id 50c4e5fe-0017-4dc3-93a6-983896839efa
+# python3 orthophoto.py --texturing-nadir-weight urban --content-item-id 50c4e5fe-0017-4dc3-93a6-983896839efa --project-id 8d377f30-d244-41b9-9f97-39a711b4679a
 
 
-WORK_VOLUME = '/data'
-WORK_VOLUME = './data'
+WORK_VOLUME = '/code'
+# WORK_VOLUME = './dataset'
 PLATFORM_URL = 'https://platform.its4land.com/api/'
 PLATFORM_API_KEY = '1'
 
@@ -36,7 +29,6 @@ def download(url: str, dest: str) -> str:
 
     api.session_token = 'NEW'
     api.download_content_item(url, filename=dest)
-    # api.download_file(None, url=url, filename=dest)
 
     return dest
 
@@ -49,16 +41,22 @@ def unzip(file: str, dest: str) -> None:
 
 def get_image_properties(dirname: str) -> Dict:
     """Get image properties like size etc."""
-    image_filename = None
+    image_basename = None
 
     for file in os.listdir(dirname):
-        if file.endswith('.jpg') or file.endswith('.JPG') or file.endswith('.jpeg') or file.endswith('.JPEG'):
-            image_filename = file
+        if (
+            file.endswith('.jpg') or
+            file.endswith('.jpeg') or
+            file.endswith('.JPG') or
+            file.endswith('.JPEG')
+        ):
+            image_basename = file
             break
 
-    assert image_filename
+    assert image_basename
 
-    width, height = imageio.imread(os.path.join(dirname, image_filename)).shape[:2]
+    image_filename = os.path.join(dirname, image_basename)
+    width, height = imageio.imread(image_filename).shape[:2]
 
     return {
         'width': width,
@@ -66,78 +64,9 @@ def get_image_properties(dirname: str) -> Dict:
     }
 
 
-def to_odm_args(args: Dict, image_max_side_size: int) -> Dict:
+def to_odm_args(args: Dict[str, str], image_max_side_size: int) -> Dict[str, Any]:
     """Input params translated to ODM params."""
-    defaults = {
-        'project_path': '/',
-        'name': 'code',
-        'resize_to': 2048,
-        'end_with': 'odm_orthophoto',
-        'rerun_all': False,
-        'min_num_features': 8000,
-        'matcher_neighbors': 8,
-        'matcher_distance': 0,
-        'use_fixed_camera_params': False,
-        'cameras': '',
-        'camera_lens': 'auto',
-        'max_concurrency': multiprocessing.cpu_count(),
-        'depthmap_resolution': 640,
-        'opensfm_depthmap_min_consistent_views': 3,
-        'opensfm_depthmap_method': 'PATCH_MATCH',
-        'opensfm_depthmap_min_patch_sd': 1,
-        'use_hybrid_bundle_adjustment': False,
-        'mve_confidence': 0.60,
-        'use_3dmesh': False,
-        'skip_3dmodel': False,
-        'use_opensfm_dense': False,
-        'ignore_gsd': False,
-        'mesh_size': 100000,
-        'mesh_octree_depth': 9,
-        'mesh_samples': 1.0,
-        'mesh_point_weight': 4,
-        'fast_orthophoto': False,
-        'crop': 3,
-        'pc_classify': False,
-        'pc_csv': False,
-        'pc_las': False,
-        'pc_ept': False,
-        'pc_filter': 2.5,
-        'smrf_scalar': 1.25,
-        'smrf_slope': 0.15,
-        'smrf_threshold': 0.5,
-        'smrf_window': 18.0,
-        'texturing_data_term': 'gmi',
-        'texturing_nadir_weight': 16,
-        'texturing_outlier_removal_type': 'gauss_clamping',
-        'texturing_skip_visibility_test': False,
-        'texturing_skip_global_seam_leveling': False,
-        'texturing_skip_local_seam_leveling': False,
-        'texturing_skip_hole_filling': False,
-        'texturing_keep_unseen_faces': False,
-        'texturing_tone_mapping': 'none',
-        'gcp': None,
-        'use_exif': False,
-        'dtm': False,
-        'dsm': False,
-        'dem_gapfill_steps': 3,
-        'dem_resolution': 5,
-        'dem_decimation': 1,
-        'dem_euclidean_map': False,
-        'orthophoto_resolution': 5,
-        'orthophoto_no_tiled': False,
-        'orthophoto_compression': 'DEFLATE',
-        'orthophoto_bigtiff': 'IF_SAFER',
-        'orthophoto_cutline': False,
-        'build_overviews': False,
-        'verbose_v': False,
-        'time': False,
-        'debug': False,
-        'split': 999999,
-        'split_overlap': 150,
-        'sm_cluster': None,
-        'merge': 'all',
-        'force_gps': False,
-    }
+    defaults = {}
     texturing_nadir_weight = {
         'rural': 16,
         'urban': 24,
@@ -168,10 +97,45 @@ def to_odm_args(args: Dict, image_max_side_size: int) -> Dict:
     return defaults
 
 
-def upload_results():
+def upload_results(project_id: str) -> Dict:
     """Upload files to their final destination on the platform."""
 
-    pass
+    api = Its4landAPI(url=PLATFORM_URL, api_key=PLATFORM_API_KEY)
+
+    api.session_token = 'token'
+    dt = datetime.datetime.now().replace(microsecond=0).isoformat()
+    name = 'Orthophoto_%s' % dt
+
+    print('Uploading orthophoto "%s" ...' % name)
+
+    return api.upload_ddi_layer(
+        file=os.path.join(WORK_VOLUME, 'odm_orthophoto', 'odm_orthophoto.tif'),
+        spatial_source_type='orthophoto',
+        tags=['orthophoto'],
+        project_id=project_id,
+        name=name,
+        descr='Orthophoto was generated for project with id: %s' % project_id
+    )
+
+
+def stringify_args(args: Dict[str, Any]) -> List[str]:
+    """Stringify arguments back to command line."""
+    arr = []
+
+    for key, val in args.items():
+        arg = '--' + key.replace('_', '-')
+
+        if val is None or val == '':
+            continue
+
+        if isinstance(val, bool):
+            if val:
+                arr.append(arg)
+        else:
+            arr.append(arg)
+            arr.append(str(val))
+
+    return arr
 
 
 def start(args: Dict) -> None:
@@ -181,9 +145,9 @@ def start(args: Dict) -> None:
             os.mkdir(WORK_VOLUME)
 
         downloaded_filename = os.path.join(WORK_VOLUME, 'images.zip')
-        extracted_dirname = os.path.join(WORK_VOLUME, 'extracted')
+        extracted_dirname = os.path.join('.', 'images')
 
-        # download(args['content_item_id'], downloaded_filename)
+        download(args['content_item_id'], downloaded_filename)
         unzip(downloaded_filename, extracted_dirname)
 
         image_props = get_image_properties(extracted_dirname)
@@ -191,19 +155,34 @@ def start(args: Dict) -> None:
 
         odm_args = to_odm_args(args, image_max_side_size=image_max_side_size)
 
-        app = ODMApp(odm_args)
-        app.execute()
+        returncode = subprocess.call(['python', '/code/run.py', *stringify_args(odm_args)],
+                                     # stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE)
 
-        upload_results()
+        if returncode != 0:
+            raise Exception('Called ODM and received return code: %s' % str(returncode))
 
+        results = upload_results(args['project_id'])
+
+        print('Successfully uploaded')
+        print(results)
+
+    except Its4landException as err:
+        print(err.error)
+        print(err.content)
+
+        traceback.print_exc()
+        exit(2)
     except Exception as err:
         # TODO better error handling
         print('Oopsie!')
         print(err)
+        traceback.print_exc()
         exit(1)
 
 
-if __name__ == '__main__':
+def parse_args():
+    """Parse command line argument."""
     parser = argparse.ArgumentParser(
         description='Create an orthophotos using OpenDroneMap',
         epilog='This tool is part of the Publish and Share platform'
@@ -258,7 +237,15 @@ if __name__ == '__main__':
     parser.add_argument('--content-item-id', type=str, required=True,
                         help='spatial-source storing the .zip file with all'
                              'the flight images.')
+    parser.add_argument('--project-id', type=str, required=True,
+                        help='Project id.')
 
     args = parser.parse_args()
 
-    start(vars(args))
+    return vars(args)
+
+
+if __name__ == '__main__':
+    args = parse_args()
+
+    start(args)
