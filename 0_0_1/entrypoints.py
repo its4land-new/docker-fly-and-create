@@ -11,7 +11,11 @@ import argparse
 import os
 import sys
 
+print(os.environ['PYTHONPATH'])
+
 from publishandshare.toolwrapper.wrapper.basicprocessing import BasicProcessing
+
+from orthophoto import (start, parse_args)
 
 sys.path.append(os.path.split(__file__)[0])
 
@@ -35,11 +39,12 @@ class Wp4odm(BasicProcessing):
 
     def start(self):
         if super(Wp4odm, self).start():
-            # TODO
+            args = parse_args()
+            start(args)
 
             return True
         return False
 
-
-
-_init()
+if __name__ == '__main__':
+    args = parse_args()
+    start(args)

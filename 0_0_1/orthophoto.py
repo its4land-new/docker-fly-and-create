@@ -104,12 +104,12 @@ def upload_results(project_id: str) -> Dict:
 
     api.session_token = 'token'
 
-    return api.upload_spatial_source(
+    return api.upload_ddi_layer(
         file=os.path.join(WORK_VOLUME, 'output.tif'),
         spatial_source_type='orthophoto',
         tags=['orthophoto'],
         project_id=project_id,
-        name='Fly&Create Orthophoto',
+        name='FlyAndCreateOrthophoto_%s' % 'project_id',
         descr='Orthophoto was generated at %s' % 'xxxx-xx-xx'
     )
 
@@ -140,8 +140,6 @@ def start(args: Dict) -> None:
         if not os.path.isdir(WORK_VOLUME):
             os.mkdir(WORK_VOLUME)
 
-        print(os.listdir())
-
         downloaded_filename = os.path.join(WORK_VOLUME, 'images.zip')
         extracted_dirname = os.path.join('.', 'images')
 
@@ -156,12 +154,12 @@ def start(args: Dict) -> None:
         returncode = subprocess.call(['python', '/code/run.py', *stringify_args(odm_args)],
                                      # stdout=subprocess.PIPE,
                                      stderr=subprocess.PIPE)
-
         print('called')
         print(returncode)
 
         results = upload_results(args['project_id'])
 
+        print('Successfully uploaded')
         print(results)
 
     except Exception as err:
@@ -172,7 +170,8 @@ def start(args: Dict) -> None:
         exit(1)
 
 
-if __name__ == '__main__':
+def parse_args():
+    """Parse command line argument."""
     parser = argparse.ArgumentParser(
         description='Create an orthophotos using OpenDroneMap',
         epilog='This tool is part of the Publish and Share platform'
@@ -232,4 +231,10 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    start(vars(args))
+    return vars(args)
+
+
+if __name__ == '__main__':
+    args = parse_args()
+
+    start(args)
