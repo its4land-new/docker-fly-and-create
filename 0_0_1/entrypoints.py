@@ -11,8 +11,6 @@ import argparse
 import os
 import sys
 
-print(os.environ['PYTHONPATH'])
-
 from publishandshare.toolwrapper.wrapper.basicprocessing import BasicProcessing
 
 from orthophoto import (start, parse_args)

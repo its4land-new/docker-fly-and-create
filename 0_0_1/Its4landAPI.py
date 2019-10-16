@@ -70,15 +70,17 @@ class Its4landException(Exception):
     def __init__(
         self,
         msg: str = None,
-        error: exceptions.RequestException = None,
+        error: Optional[exceptions.RequestException] = None,
         url: str = None,
-        code: int = None
+        code: int = None,
+        content: Any = None,
     ):
         self.msg = msg
         self.code = code
         self.url = url
         self.error = error
         self.count = 0
+        self.content = content
 
         if error:
             if isinstance(error, Its4landException):
@@ -174,7 +176,6 @@ class Its4landAPI:
                 print(curlify.to_curl(resp.request))
 
             if resp is not None:
-
                 if resp.ok and resp.content is not None:
                     if response_type == ResponseType.stream:
                         return resp
@@ -185,9 +186,18 @@ class Its4landAPI:
 
                     assert False, 'Unrecognized response type'
                 else:
-                    raise Its4landException(url=resp.url, code=resp.status_code, msg=resp.reason)
+                    content = ''
+
+                    try:
+                        content = resp.json()
+                    except:
+                        content = str(resp.content)
+
+                    raise Its4landException(url=resp.url, code=resp.status_code, msg=resp.reason, content=content)
             else:
                 raise Its4landException(url=url, msg='There is no response, something bad happened')
+        except Its4landException as e:
+            raise e
         except exceptions.RequestException as e:
             raise Its4landException(error=e)
         except Exception as e:
@@ -277,7 +287,7 @@ class Its4landAPI:
                          }
         )
 
-        path = os.path.join('projects', project_id, 'SpatialSources')
+        path = os.path.join('DDIlayers')
 
         return self.post({
             'Name': name,

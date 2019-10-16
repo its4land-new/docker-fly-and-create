@@ -3,21 +3,21 @@
 from typing import (Dict, List, Any)
 import os
 import argparse
-import multiprocessing
 import zipfile
 import traceback
 import subprocess
+import datetime
 
 import imageio
 
-from Its4landAPI import Its4landAPI
+from Its4landAPI import Its4landAPI, Its4landException
 
 
 # sample call:
 # python3 orthophoto.py --texturing-nadir-weight urban --content-item-id 50c4e5fe-0017-4dc3-93a6-983896839efa --project-id 8d377f30-d244-41b9-9f97-39a711b4679a
 
 
-WORK_VOLUME = '/dataset'
+WORK_VOLUME = '/code'
 # WORK_VOLUME = './dataset'
 PLATFORM_URL = 'https://platform.its4land.com/api/'
 PLATFORM_API_KEY = '1'
@@ -103,14 +103,18 @@ def upload_results(project_id: str) -> Dict:
     api = Its4landAPI(url=PLATFORM_URL, api_key=PLATFORM_API_KEY)
 
     api.session_token = 'token'
+    dt = datetime.datetime.now().replace(microsecond=0).isoformat()
+    name = 'Orthophoto_%s' % dt
+
+    print('Uploading orthophoto "%s" ...' % name)
 
     return api.upload_ddi_layer(
-        file=os.path.join(WORK_VOLUME, 'output.tif'),
+        file=os.path.join(WORK_VOLUME, 'odm_orthophoto', 'odm_orthophoto.tif'),
         spatial_source_type='orthophoto',
         tags=['orthophoto'],
         project_id=project_id,
-        name='FlyAndCreateOrthophoto_%s' % 'project_id',
-        descr='Orthophoto was generated at %s' % 'xxxx-xx-xx'
+        name=name,
+        descr='Orthophoto was generated for project with id: %s' % project_id
     )
 
 
@@ -154,14 +158,21 @@ def start(args: Dict) -> None:
         returncode = subprocess.call(['python', '/code/run.py', *stringify_args(odm_args)],
                                      # stdout=subprocess.PIPE,
                                      stderr=subprocess.PIPE)
-        print('called')
-        print(returncode)
+
+        if returncode != 0:
+            raise Exception('Called ODM and received return code: %s' % str(returncode))
 
         results = upload_results(args['project_id'])
 
         print('Successfully uploaded')
         print(results)
 
+    except Its4landException as err:
+        print(err.error)
+        print(err.content)
+
+        traceback.print_exc()
+        exit(2)
     except Exception as err:
         # TODO better error handling
         print('Oopsie!')
