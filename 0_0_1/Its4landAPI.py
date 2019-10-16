@@ -259,6 +259,41 @@ class Its4landAPI:
             'Name': name,
         }, encode_as='json', url=urljoin(self.url, path))
 
+    def upload_ddi_layer(
+                            self,
+                            project_id: str,
+                            file: Any,
+                            tags: Optional[List[str]],
+                            name: str,
+                            descr: Optional[str],
+                            spatial_source_type: str = 'File',
+                            ):
+
+        resp = self.post(
+                         None,
+                         url=urljoin(self.url, 'contentitems'),
+                         files={
+                             'newcontent': file,
+                         }
+        )
+
+        path = os.path.join('projects', project_id, 'SpatialSources')
+
+        return self.post({
+            'Name': name,
+            'Description': descr,
+            'LongDescription': "",
+            "Service": "WMS",
+            'Projects': [
+                {
+                    'UUID': project_id,
+                },
+            ],
+            'ContentItems': [
+                resp['ContentID'],
+            ],
+            'Tags': tags,
+        }, encode_as='json', url=urljoin(self.url, path))
 
     def download_content_item(self, uid: str, filename: str):
         url = urljoin(self.url, 'contentitems/%s' % quote(uid, safe=''))
