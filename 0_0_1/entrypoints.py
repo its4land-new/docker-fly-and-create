@@ -13,7 +13,7 @@ import sys
 
 from publishandshare.toolwrapper.wrapper.basicprocessing import BasicProcessing
 
-from orthophoto import (start, parse_args)
+from .orthophoto import (start, parse_args)
 
 sys.path.append(os.path.split(__file__)[0])
 
