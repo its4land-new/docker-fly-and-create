@@ -10,7 +10,7 @@ import datetime
 
 import imageio
 
-from Its4landAPI import Its4landAPI, Its4landException
+from .Its4landAPI import Its4landAPI, Its4landException
 
 
 # sample call:
@@ -21,8 +21,8 @@ WORK_VOLUME = '/code'
 PLATFORM_URL = 'https://platform.its4land.com/api/'
 PLATFORM_API_KEY = '1'
 
-if 'I4L_PROJECTUID' in os.environ:
-    PLATFORM_URL = os.environ['I4L_PROJECTUID']
+if 'I4L_PUBLICAPIURL' in os.environ:
+    PLATFORM_URL = os.environ['I4L_PUBLICAPIURL']
 
 
 def download(url: str, dest: str) -> str:
