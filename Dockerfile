@@ -30,7 +30,7 @@ ENV TOOL_VERSION 0_0_1
 
 COPY ${TOOL_VERSION} /app/publishandshare/${TOOL_NAME}/${TOOL_VERSION}
 
-ENTRYPOINT [ "python3", "/app/publishandshare/wrapper.py" ]
+ENTRYPOINT [ "python3", "-u", "/app/publishandshare/wrapper.py" ]
 
 # ENTRYPOINT [ "python3", "/app/publishandshare/flyandcreate/0_0_1/entrypoints.py" ]
 
