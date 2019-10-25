@@ -1,6 +1,6 @@
 FROM opendronemap/odm
 
-LABEL name="flyandcreate"
+LABEL name="uavorthogenerator"
 LABEL version="0.0.1"
 LABEL description="flyandcreate - a tool for creating orthophotos, based on OpenDroneMap"
 
@@ -25,7 +25,7 @@ COPY packages/python3/${PUS_API_LIB} ${PUS_DIR}/packages/python3
 RUN pip3 install ${PUS_DIR}/packages/python3/${PUS_LIB}
 RUN pip3 install ${PUS_DIR}/packages/python3/${PUS_API_LIB}
 
-ENV TOOL_NAME flyandcreate
+ENV TOOL_NAME uavorthogenerator
 ENV TOOL_VERSION 0_0_1
 
 COPY ${TOOL_VERSION} /app/publishandshare/${TOOL_NAME}/${TOOL_VERSION}
