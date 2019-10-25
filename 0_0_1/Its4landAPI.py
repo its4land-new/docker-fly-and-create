@@ -241,52 +241,75 @@ class Its4landAPI:
             'uid': uid
         }, url=urljoin(self.url, 'contentitems'))
 
-    def upload_spatial_source(
+
+    def upload_content_item(self, file: Any) -> Dict:
+        return self.post(
+            None,
+            url=urljoin(self.url, 'contentitems'),
+            files={
+                'newcontent': file,
+            }
+        )
+
+    def get_spatial_source(
+        self,
+        spatial_source_id: str
+    ):
+        path = os.path.join('spatialsource', spatial_source_id)
+        return self.get(None, url=urljoin(self.url, path))
+
+    def post_spatial_source(
                             self,
                             project_id: str,
-                            file: Any,
+                            content_item_id: str,
                             tags: Optional[List[str]],
                             name: str,
                             descr: Optional[str],
-                            spatial_source_type: str = 'File',
+                            type: str = 'File'
                             ):
-
-        resp = self.post(
-                         None,
-                         url=urljoin(self.url, 'contentitems'),
-                         files={
-                             'newcontent': file,
-                         }
-        )
 
         path = os.path.join('projects', project_id, 'SpatialSources')
 
-        return self.post({
-            'Type': spatial_source_type,
+        project = self.post({
+            'Type': type,
             'Description': descr,
-            'ContentItem': resp['ContentID'],
+            'ContentItem': content_item_id,
             'Tags': tags,
             'Name': name,
         }, encode_as='json', url=urljoin(self.url, path))
 
-    def upload_ddi_layer(
-                            self,
-                            project_id: str,
-                            file: Any,
-                            tags: Optional[List[str]],
-                            name: str,
-                            descr: Optional[str],
-                            spatial_source_type: str = 'File',
-                            ):
+        return self.get_spatial_source(project['features'][0]['properties']['SpatialSources'][-1]['UID'])
 
-        resp = self.post(
-                         None,
-                         url=urljoin(self.url, 'contentitems'),
-                         files={
-                             'newcontent': file,
-                         }
-        )
+    def get_additional_documents(self, spatial_source_id):
+        path = os.path.join(
+            'spatialsource', spatial_source_id, 'AdditionalDocument')
 
+        return self.get(None, url=urljoin(self.url, path))
+
+    def post_additional_document(
+        self,
+        spatial_source_id: str,
+        content_item_id: str,
+        type: str = 'File',
+        descr: str = '',
+    ):
+        path = os.path.join(
+            'spatialsource', spatial_source_id, 'AdditionalDocument')
+
+        return self.post({
+            'Type': type,
+            'Description': descr,
+            'ContentItem': content_item_id,
+        }, encode_as='json', url=urljoin(self.url, path))
+
+    def post_ddi_layer(
+        self,
+        project_id: str,
+        content_item_id: str,
+        tags: Optional[List[str]],
+        name: str,
+        descr: Optional[str],
+    ):
         path = os.path.join('DDIlayers')
 
         return self.post({
@@ -299,9 +322,7 @@ class Its4landAPI:
                     'UUID': project_id,
                 },
             ],
-            'ContentItems': [
-                resp['ContentID'],
-            ],
+            'ContentItems': [content_item_id],
             'Tags': tags,
         }, encode_as='json', url=urljoin(self.url, path))
 
