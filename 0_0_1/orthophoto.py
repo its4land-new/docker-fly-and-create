@@ -6,7 +6,7 @@ import argparse
 import zipfile
 import traceback
 import subprocess
-import datetime
+import time
 import tempfile
 import json
 
@@ -23,7 +23,7 @@ except:
 # python3 orthophoto.py --texturing-nadir-weight urban --spatial-source-id 487c67f5-7820-4d1b-bc0b-274c59157053 --project-id 8d7e9cf1-1a4d-4366-992d-7ae49370978a
 
 WORK_VOLUME = '/code'
-# WORK_VOLUME = './dataset'
+# WORK_VOLUME = './0_0_1/dataset'
 PLATFORM_URL = 'https://platform.its4land.com/api/'
 PLATFORM_API_KEY = '1'
 
@@ -98,10 +98,11 @@ def to_odm_args(args: Dict[str, str], image_max_side_size: int) -> Dict[str, Any
 
     return defaults
 
+
 def get_orthophoto_name(name: str, metadata: Dict[str, Any]):
-    dt = datetime.datetime.now().replace(microsecond=0).isoformat().replace(':', '-')
-    # return 'Orthophoto_{}_{}_{}'.format(name, metadata['Date of flight'][0], dt)
-    return 'O_{}_{}'.format(metadata['Date of flight'][0], dt)
+    current_time = str(int(time.time()))
+    flight_date = metadata['Date of flight'][0]
+    return '{}_{}_{}_{}'.format(name[:25], flight_date, 'orthophoto', current_time)
 
 
 def stringify_args(args: Dict[str, Any]) -> List[str]:
@@ -206,11 +207,11 @@ def start(args: Dict) -> None:
             project_id=project_id,
             content_item_id=content_item_id,
             tags=[],
-            descr='{} Orthophoto'.format(name),
+            descr='{}'.format(name),
             name=name,
             type='Orthomosaic'
         )
-        print(spatial_source)
+        
         spatial_source_id = spatial_source['UID']
 
         print('Adding metadata as additional document to SpatialSourceId {} ...'.format(
@@ -228,6 +229,30 @@ def start(args: Dict) -> None:
             name=name,
             descr=''
         )
+
+        if args['dsm']:
+            dsm_filename = os.path.join(
+                WORK_VOLUME, 'odm_dem', 'dsm.tif')
+
+            print('Uploading DSM...')
+
+            dsm_content_item = api.upload_content_item(dsm_filename)
+            dsm_content_item_id = dsm_content_item['ContentID']
+
+            api.post_additional_document(
+                spatial_source_id, dsm_content_item_id, type='DSM', descr='DSM')
+
+        if args['pc_las']:
+            point_cloud_filename = os.path.join(
+                WORK_VOLUME, 'odm_georeferencing', 'odm_georeferenced_model.laz')
+
+            print('Uploading LAZ point cloud...')
+
+            point_cloud = api.upload_content_item(point_cloud_filename)
+            point_cloud_id = point_cloud['ContentID']
+
+            api.post_additional_document(
+                spatial_source_id, point_cloud_id, type='PointCloud', descr='Point Cloud in LAZ format')
 
         print('Successfully uploaded! Finished!')
 
