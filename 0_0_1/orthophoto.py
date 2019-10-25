@@ -7,14 +7,20 @@ import zipfile
 import traceback
 import subprocess
 import datetime
+import tempfile
+import json
 
 import imageio
 
-from .Its4landAPI import Its4landAPI, Its4landException
+try:
+    from .Its4landAPI import Its4landAPI, Its4landException
+except:
+    from Its4landAPI import Its4landAPI, Its4landException
+
 
 
 # sample call:
-# python3 orthophoto.py --texturing-nadir-weight urban --content-item-id 50c4e5fe-0017-4dc3-93a6-983896839efa --project-id 8d377f30-d244-41b9-9f97-39a711b4679a
+# python3 orthophoto.py --texturing-nadir-weight urban --spatial-source-id 487c67f5-7820-4d1b-bc0b-274c59157053 --project-id 8d7e9cf1-1a4d-4366-992d-7ae49370978a
 
 WORK_VOLUME = '/code'
 # WORK_VOLUME = './dataset'
@@ -23,16 +29,6 @@ PLATFORM_API_KEY = '1'
 
 if 'I4L_PUBLICAPIURL' in os.environ:
     PLATFORM_URL = os.environ['I4L_PUBLICAPIURL']
-
-
-def download(url: str, dest: str) -> str:
-    """Download file on specified URL to specified location."""
-    api = Its4landAPI(url=PLATFORM_URL, api_key=PLATFORM_API_KEY)
-
-    api.session_token = 'NEW'
-    api.download_content_item(url, filename=dest)
-
-    return dest
 
 
 def unzip(file: str, dest: str) -> None:
@@ -68,7 +64,7 @@ def get_image_properties(dirname: str) -> Dict:
 
 def to_odm_args(args: Dict[str, str], image_max_side_size: int) -> Dict[str, Any]:
     """Input params translated to ODM params."""
-    defaults = {}
+    defaults = args.copy()
     texturing_nadir_weight = {
         'rural': 16,
         'urban': 24,
@@ -80,44 +76,32 @@ def to_odm_args(args: Dict[str, str], image_max_side_size: int) -> Dict[str, Any
         'eighth': image_max_side_size / 8,
     }
 
-    defaults['resize_to'] = resize_to[args['resize_to']]
-    defaults['texturing_nadir_weight'] = texturing_nadir_weight[args['texturing_nadir_weight']]
+    defaults['resize_to'] = resize_to[defaults['resize_to']]
+    defaults['texturing_nadir_weight'] = texturing_nadir_weight[defaults['texturing_nadir_weight']]
 
-    defaults['opensfm_depthmap_method'] = args['opensfm_depthmap_method']
-    defaults['opensfm_depthmap_min_consistent_views'] = args['opensfm_depthmap_min_consistent_views']
-    defaults['pc_las'] = args['pc_las']
-    defaults['dsm'] = args['dsm']
-    defaults['dem_resolution'] = args['dem_resolution']
-    defaults['orthophoto_resolution'] = args['orthophoto_resolution']
-    defaults['min_num_features'] = args['min_num_features']
+    defaults['opensfm_depthmap_method'] = defaults['opensfm_depthmap_method']
+    defaults['opensfm_depthmap_min_consistent_views'] = defaults['opensfm_depthmap_min_consistent_views']
+    defaults['pc_las'] = defaults['pc_las']
+    defaults['dsm'] = defaults['dsm']
+    defaults['dem_resolution'] = defaults['dem_resolution']
+    defaults['orthophoto_resolution'] = defaults['orthophoto_resolution']
+    defaults['min_num_features'] = defaults['min_num_features']
 
-    if args['georeferencing'] == 'EXIF':
+    if defaults['georeferencing'] == 'EXIF':
         defaults['use_exif'] = True
-    elif args['georeferencing'] == 'GCP':
+    elif defaults['georeferencing'] == 'GCP':
         defaults['use_exif'] = False
+
+    del defaults['georeferencing']
+    del defaults['spatial_source_id']
+    del defaults['project_id']
 
     return defaults
 
-
-def upload_results(project_id: str) -> Dict:
-    """Upload files to their final destination on the platform."""
-
-    api = Its4landAPI(url=PLATFORM_URL, api_key=PLATFORM_API_KEY)
-
-    api.session_token = 'token'
-    dt = datetime.datetime.now().replace(microsecond=0).isoformat()
-    name = 'Orthophoto_%s' % dt
-
-    print('Uploading orthophoto "%s" ...' % name)
-
-    return api.upload_ddi_layer(
-        file=os.path.join(WORK_VOLUME, 'odm_orthophoto', 'odm_orthophoto.tif'),
-        spatial_source_type='orthophoto',
-        tags=['orthophoto'],
-        project_id=project_id,
-        name=name,
-        descr='Orthophoto was generated for project with id: %s' % project_id
-    )
+def get_orthophoto_name(name: str, metadata: Dict[str, Any]):
+    dt = datetime.datetime.now().replace(microsecond=0).isoformat().replace(':', '-')
+    # return 'Orthophoto_{}_{}_{}'.format(name, metadata['Date of flight'][0], dt)
+    return 'O_{}_{}'.format(metadata['Date of flight'][0], dt)
 
 
 def stringify_args(args: Dict[str, Any]) -> List[str]:
@@ -146,18 +130,60 @@ def start(args: Dict) -> None:
         if not os.path.isdir(WORK_VOLUME):
             os.mkdir(WORK_VOLUME)
 
-        project_id = args['project_id'] if 'project_id' in args else os.environ['I4L_PROJECTUID']
+        api = Its4landAPI(url=PLATFORM_URL, api_key=PLATFORM_API_KEY)
+        api.session_token = '1'
+
+        project_id = os.environ['I4L_PROJECTUID'] if 'I4L_PROJECTUID' in os.environ else args['project_id']
+
+        assert project_id is not None, 'Missing project id'
+
+        print('Downloading ...'.format())
+
+        spatial_source = api.get_spatial_source(args['spatial_source_id'])
+        metadata = None
+        metadata_id = None
+        gcp_filename = None
+
+        assert spatial_source['Type'] == 'UAVimagery', 'Expected the spatial source type to be "UAVimagery"'
+
+        for doc in api.get_additional_documents(args['spatial_source_id']):
+            if doc['Type'] == 'Metadata':
+                assert metadata_id is None, 'Metadata has already been defined, aborting...'
+                tmp = tempfile.NamedTemporaryFile(mode='w+', encoding='utf8')
+                api.download_content_item(doc['ContentItem'], tmp.name)
+
+                metadata_id = doc['ContentItem']
+
+                metadata = json.load(tmp)
+            elif doc['Type'] == 'GCP List':
+                assert metadata_id is None, 'GCP list have already been defined, aborting...'
+                gcp_filename = os.path.join(WORK_VOLUME, 'gcp_list.txt')
+                api.download_content_item(doc['ContentItem'], gcp_filename)
+
+            print(doc)
+
+        assert metadata_id is not None, 'Metadata is not defined, aborting...'
+        assert isinstance(metadata, dict), 'Metadata is not a dictionary, aborting...'
+
+        if args['georeferencing'] == 'GCP':
+            args['gcp'] = gcp_filename
+
+            assert gcp_filename is not None, 'GCP file is missing'
 
         downloaded_filename = os.path.join(WORK_VOLUME, 'images.zip')
-        extracted_dirname = os.path.join('.', 'images')
+        extracted_dirname = os.path.join(WORK_VOLUME, 'images')
 
-        download(args['content_item_id'], downloaded_filename)
+        api.download_content_item(spatial_source['ContentItem'], downloaded_filename)
+
         unzip(downloaded_filename, extracted_dirname)
 
         image_props = get_image_properties(extracted_dirname)
         image_max_side_size = max(image_props['width'], image_props['height'])
 
         odm_args = to_odm_args(args, image_max_side_size=image_max_side_size)
+
+        print('Arguments are {}'.format(odm_args))
+        print('Processing ...'.format())
 
         returncode = subprocess.call(['python', '/code/run.py', *stringify_args(odm_args)],
                                      # stdout=subprocess.PIPE,
@@ -166,10 +192,44 @@ def start(args: Dict) -> None:
         if returncode != 0:
             raise Exception('Called ODM and received return code: %s' % str(returncode))
 
-        results = upload_results(project_id)
+        orthophoto_filename = os.path.join(WORK_VOLUME, 'odm_orthophoto', 'odm_orthophoto.tif')
+        name = get_orthophoto_name(spatial_source['Name'], metadata)
+        print('Uploading orthophoto "{}" ...'.format(name))
 
-        print('Successfully uploaded')
-        print(results)
+        content_item = api.upload_content_item(orthophoto_filename)
+        content_item_id = content_item['ContentID']
+
+        print('Creating orthophoto spatial source with ContentItemId {} ...'.format(
+            content_item_id))
+
+        spatial_source = api.post_spatial_source(
+            project_id=project_id,
+            content_item_id=content_item_id,
+            tags=[],
+            descr='{} Orthophoto'.format(name),
+            name=name,
+            type='Orthomosaic'
+        )
+        print(spatial_source)
+        spatial_source_id = spatial_source['UID']
+
+        print('Adding metadata as additional document to SpatialSourceId {} ...'.format(
+            spatial_source_id))
+
+        api.post_additional_document(
+            spatial_source_id, metadata_id, type='Metadata', descr='Flight metadata')
+
+        print('Generating DDILayer "{}" ...'.format(name))
+
+        api.post_ddi_layer(
+            project_id=project_id,
+            content_item_id=content_item_id,
+            tags=['orthophoto'],
+            name=name,
+            descr=''
+        )
+
+        print('Successfully uploaded! Finished!')
 
     except Its4landException as err:
         print(err.error)
@@ -238,7 +298,7 @@ def parse_args():
                         help='Minimum number of features to extract per '
                              'image. More features leads to better results '
                              'but slower execution. Default: 10000')
-    parser.add_argument('--content-item-id', type=str, required=True,
+    parser.add_argument('--spatial-source-id', type=str, required=True,
                         help='spatial-source storing the .zip file with all'
                              'the flight images.')
     parser.add_argument('--project-id', type=str,
