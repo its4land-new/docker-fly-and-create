@@ -326,6 +326,25 @@ class Its4landAPI:
             'Tags': tags,
         }, encode_as='json', url=urljoin(self.url, path))
 
+    def post_log(
+        self,
+        log_msg: str,
+        log_lvl: str = 'Info',
+        log_src:str = 'UAV Ortho Generator Tool'
+    ):
+        pid = os.getenv('I4L_PROCESSUID')
+
+        if pid is None:
+            return None
+
+        path = os.path.join('processes', pid, 'log')
+
+        return self.post({
+            'LogMsg': log_msg,
+            'LogSource': log_src,
+            'LogLevel': log_lvl
+        }, encode_as='json', url=urljoin(self.url, path))
+
     def download_content_item(self, uid: str, filename: str):
         url = urljoin(self.url, 'contentitems/%s' % quote(uid, safe=''))
 

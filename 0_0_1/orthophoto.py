@@ -139,6 +139,7 @@ def start(args: Dict) -> None:
         assert project_id is not None, 'Missing project id'
 
         print('Downloading ...'.format())
+        api.post_log('Getting spatial source: {}'.format(args['spatial_source_id']), 'Debug')
 
         spatial_source = api.get_spatial_source(args['spatial_source_id'])
         metadata = None
@@ -151,6 +152,7 @@ def start(args: Dict) -> None:
             if doc['Type'] == 'Metadata':
                 assert metadata_id is None, 'Metadata has already been defined, aborting...'
                 tmp = tempfile.NamedTemporaryFile(mode='w+', encoding='utf8')
+                api.post_log('Downloading metadata content item: {}'.format(doc['ContentItem']), 'Debug')
                 api.download_content_item(doc['ContentItem'], tmp.name)
 
                 metadata_id = doc['ContentItem']
@@ -159,6 +161,7 @@ def start(args: Dict) -> None:
             elif doc['Type'] == 'GCP List':
                 assert metadata_id is None, 'GCP list have already been defined, aborting...'
                 gcp_filename = os.path.join(WORK_VOLUME, 'gcp_list.txt')
+                api.post_log('Downloading GCP content item: {}'.format(doc['ContentItem']), 'Debug')
                 api.download_content_item(doc['ContentItem'], gcp_filename)
 
             print(doc)
@@ -174,6 +177,8 @@ def start(args: Dict) -> None:
         downloaded_filename = os.path.join(WORK_VOLUME, 'images.zip')
         extracted_dirname = os.path.join(WORK_VOLUME, 'images')
 
+        api.post_log('Downloading spatial source content item: {}'.format(
+            spatial_source['ContentItem']), 'Debug')
         api.download_content_item(spatial_source['ContentItem'], downloaded_filename)
 
         unzip(downloaded_filename, extracted_dirname)
@@ -185,23 +190,28 @@ def start(args: Dict) -> None:
 
         print('Arguments are {}'.format(odm_args))
         print('Processing ...'.format())
+        api.post_log('Running ODM with arguments: {}'.format(odm_args), 'Info')
 
         returncode = subprocess.call(['python', '/code/run.py', *stringify_args(odm_args)],
                                      # stdout=subprocess.PIPE,
                                      stderr=subprocess.PIPE)
 
         if returncode != 0:
+            api.post_log('ODM failed with return code: {}'.format(returncode), 'Error')
             raise Exception('Called ODM and received return code: %s' % str(returncode))
 
         orthophoto_filename = os.path.join(WORK_VOLUME, 'odm_orthophoto', 'odm_orthophoto.tif')
         name = get_orthophoto_name(spatial_source['Name'], metadata)
         print('Uploading orthophoto "{}" ...'.format(name))
+        api.post_log('Uploading generated orthophoto to PaS: {}'.format(name), 'Info')
 
         content_item = api.upload_content_item(orthophoto_filename)
         content_item_id = content_item['ContentID']
 
         print('Creating orthophoto spatial source with ContentItemId {} ...'.format(
             content_item_id))
+        api.post_log('Creating spatial source from uploaded orthophoto (content item id: {})'.format(
+            content_item_id), 'Debug')
 
         spatial_source = api.post_spatial_source(
             project_id=project_id,
@@ -216,11 +226,14 @@ def start(args: Dict) -> None:
 
         print('Adding metadata as additional document to SpatialSourceId {} ...'.format(
             spatial_source_id))
+        api.post_log('Adding flight metadata to created spatial source with id: {}'.format(
+            spatial_source_id), 'Debug')
 
         api.post_additional_document(
             spatial_source_id, metadata_id, type='Metadata', descr='Flight metadata')
 
         print('Generating DDILayer "{}" ...'.format(name))
+        api.post_log('Generating DDILayer: {}'.format(name), 'Info')
 
         api.post_ddi_layer(
             project_id=project_id,
@@ -235,6 +248,7 @@ def start(args: Dict) -> None:
                 WORK_VOLUME, 'odm_dem', 'dsm.tif')
 
             print('Uploading DSM...')
+            api.post_log('Uploading DSM'.format(), 'Info')
 
             dsm_content_item = api.upload_content_item(dsm_filename)
             dsm_content_item_id = dsm_content_item['ContentID']
@@ -247,6 +261,7 @@ def start(args: Dict) -> None:
                 WORK_VOLUME, 'odm_georeferencing', 'odm_georeferenced_model.laz')
 
             print('Uploading LAZ point cloud...')
+            api.post_log('Uploading LAZ point cloud'.format(), 'Info')
 
             point_cloud = api.upload_content_item(point_cloud_filename)
             point_cloud_id = point_cloud['ContentID']
@@ -255,6 +270,7 @@ def start(args: Dict) -> None:
                 spatial_source_id, point_cloud_id, type='PointCloud', descr='Point Cloud in LAZ format')
 
         print('Successfully uploaded! Finished!')
+        api.post_log('Tool successfully finished'.format(), 'Info')
 
     except Its4landException as err:
         print(err.error)
