@@ -241,7 +241,6 @@ class Its4landAPI:
             'uid': uid
         }, url=urljoin(self.url, 'contentitems'))
 
-
     def upload_content_item(self, file: Any) -> Dict:
         return self.post(
             None,

@@ -2,6 +2,7 @@
 
 from typing import (Dict, List, Any)
 import os
+import shutil
 import argparse
 import zipfile
 import traceback
@@ -95,6 +96,7 @@ def to_odm_args(args: Dict[str, str], image_max_side_size: int) -> Dict[str, Any
     del defaults['georeferencing']
     del defaults['spatial_source_id']
     del defaults['project_id']
+    del defaults['zip']
 
     return defaults
 
@@ -174,9 +176,16 @@ def start(args: Dict) -> None:
         downloaded_filename = os.path.join(WORK_VOLUME, 'images.zip')
         extracted_dirname = os.path.join(WORK_VOLUME, 'images')
 
-        api.download_content_item(spatial_source['ContentItem'], downloaded_filename)
+        if args['zip']:
+            print('using local zip')
+            shutil.copyfile(args['zip'], downloaded_filename)
+        else:
+            print('downloading zip')
+            api.download_content_item(spatial_source['ContentItem'], downloaded_filename)
 
         unzip(downloaded_filename, extracted_dirname)
+
+        print('Dir contents:', os.listdir(extracted_dirname))
 
         image_props = get_image_properties(extracted_dirname)
         image_max_side_size = max(image_props['width'], image_props['height'])
@@ -326,6 +335,8 @@ def parse_args():
     parser.add_argument('--spatial-source-id', type=str, required=True,
                         help='spatial-source storing the .zip file with all'
                              'the flight images.')
+    parser.add_argument('--zip', type=str,
+                        help='zipfile storing the data')
     parser.add_argument('--project-id', type=str,
                         help='Project id.')
 
