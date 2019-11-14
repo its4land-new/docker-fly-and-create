@@ -10,6 +10,7 @@ import subprocess
 import time
 import tempfile
 import json
+import pathlib
 
 import imageio
 
@@ -19,11 +20,20 @@ except:
     from Its4landAPI import Its4landAPI, Its4landException
 
 
+def list_files(startpath):
+    for root, dirs, files in os.walk(startpath):
+        level = root.replace(startpath, '').count(os.sep)
+        indent = ' ' * 4 * (level)
+        print('{}{}/'.format(indent, os.path.basename(root)))
+        subindent = ' ' * 4 * (level + 1)
+        for f in files:
+            print('{}{}'.format(subindent, f))
 
 # sample call:
 # python3 orthophoto.py --texturing-nadir-weight urban --spatial-source-id 487c67f5-7820-4d1b-bc0b-274c59157053 --project-id 8d7e9cf1-1a4d-4366-992d-7ae49370978a
 
-WORK_VOLUME = '/code'
+PROJECT_PATH = '/datasets'
+WORK_VOLUME = os.path.join(PROJECT_PATH, 'code')
 # WORK_VOLUME = './0_0_1/dataset'
 PLATFORM_URL = 'https://platform.its4land.com/api/'
 PLATFORM_API_KEY = '1'
@@ -87,6 +97,7 @@ def to_odm_args(args: Dict[str, str], image_max_side_size: int) -> Dict[str, Any
     defaults['dem_resolution'] = defaults['dem_resolution']
     defaults['orthophoto_resolution'] = defaults['orthophoto_resolution']
     defaults['min_num_features'] = defaults['min_num_features']
+    defaults['project_path'] = PROJECT_PATH
 
     if defaults['georeferencing'] == 'EXIF':
         defaults['use_exif'] = True
@@ -130,8 +141,7 @@ def stringify_args(args: Dict[str, Any]) -> List[str]:
 def start(args: Dict) -> None:
     """Run orthophoto creation."""
     try:
-        if not os.path.isdir(WORK_VOLUME):
-            os.mkdir(WORK_VOLUME)
+        pathlib.Path(WORK_VOLUME).mkdir(parents=True, exist_ok=True)
 
         api = Its4landAPI(url=PLATFORM_URL, api_key=PLATFORM_API_KEY)
         api.session_token = '1'
@@ -183,7 +193,9 @@ def start(args: Dict) -> None:
             print('downloading zip')
             api.download_content_item(spatial_source['ContentItem'], downloaded_filename)
 
-        unzip(downloaded_filename, extracted_dirname)
+        # unzip(downloaded_filename, extracted_dirname)
+
+        list_files(WORK_VOLUME)
 
         print('Dir contents:', os.listdir(extracted_dirname))
 
@@ -328,10 +340,10 @@ def parse_args():
     parser.add_argument('--orthophoto-resolution', type=float,
                         metavar='<float > 0.0>', default=5,
                         help='Orthophoto resolution in cm / pixel. Default: 5')
-    parser.add_argument('--min-num-features', type=int, default=10000,
+    parser.add_argument('--min-num-features', type=int, default=8000,
                         help='Minimum number of features to extract per '
                              'image. More features leads to better results '
-                             'but slower execution. Default: 10000')
+                             'but slower execution. Default: 8000')
     parser.add_argument('--spatial-source-id', type=str, required=True,
                         help='spatial-source storing the .zip file with all'
                              'the flight images.')
