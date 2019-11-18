@@ -318,7 +318,7 @@ class Its4landAPI:
             "Service": "WMS",
             'Projects': [
                 {
-                    'UUID': project_id,
+                    'UID': project_id,
                 },
             ],
             'ContentItems': [content_item_id],
