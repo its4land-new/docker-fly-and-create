@@ -15,19 +15,10 @@ import pathlib
 import imageio
 
 try:
-    from .Its4landAPI import Its4landAPI, Its4landException
+    from .Its4landAPI import Its4landAPI, Its4landException, LogLevel
 except:
-    from Its4landAPI import Its4landAPI, Its4landException
+    from Its4landAPI import Its4landAPI, Its4landException, LogLevel
 
-
-def list_files(startpath):
-    for root, dirs, files in os.walk(startpath):
-        level = root.replace(startpath, '').count(os.sep)
-        indent = ' ' * 4 * (level)
-        print('{}{}/'.format(indent, os.path.basename(root)))
-        subindent = ' ' * 4 * (level + 1)
-        for f in files:
-            print('{}{}'.format(subindent, f))
 
 # sample call:
 # python3 orthophoto.py --texturing-nadir-weight urban --spatial-source-id 487c67f5-7820-4d1b-bc0b-274c59157053 --project-id 8d7e9cf1-1a4d-4366-992d-7ae49370978a
@@ -150,7 +141,7 @@ def start(args: Dict) -> None:
 
         assert project_id is not None, 'Missing project id'
 
-        print('Downloading ...'.format())
+        api.log(LogLevel.Info, 'Downloading ...'.format())
 
         spatial_source = api.get_spatial_source(args['spatial_source_id'])
         metadata = None
@@ -187,25 +178,24 @@ def start(args: Dict) -> None:
         extracted_dirname = os.path.join(WORK_VOLUME, 'images')
 
         if args['zip']:
-            print('using local zip')
+            api.log(LogLevel.Info, 'Using local zip!')
             shutil.copyfile(args['zip'], downloaded_filename)
         else:
-            print('downloading zip')
+            api.log(LogLevel.Info, 'Downloading zip ...')
             api.download_content_item(spatial_source['ContentItem'], downloaded_filename)
 
         unzip(downloaded_filename, extracted_dirname)
 
-        list_files(WORK_VOLUME)
-
-        print('Dir contents:', os.listdir(extracted_dirname))
+        api.log(LogLevel.Info, 'Extracted dir contents:',
+                os.listdir(extracted_dirname))
 
         image_props = get_image_properties(extracted_dirname)
         image_max_side_size = max(image_props['width'], image_props['height'])
 
         odm_args = to_odm_args(args, image_max_side_size=image_max_side_size)
 
-        print('Arguments are {}'.format(odm_args))
-        print('Processing ...'.format())
+        api.log(LogLevel.Info, 'Arguments are {}'.format(odm_args))
+        api.log(LogLevel.Info, 'Processing ...'.format())
 
         returncode = subprocess.call(['python', '/code/run.py', *stringify_args(odm_args)],
                                     #  stdout=subprocess.PIPE,
@@ -213,16 +203,18 @@ def start(args: Dict) -> None:
                                     )
 
         if returncode != 0:
-            raise Exception('Called ODM and received return code: %s' % str(returncode))
+            msg = 'Called ODM and received return code: %s' % str(returncode)
+            api.log(LogLevel.Error, msg)
+            raise Exception(msg)
 
         orthophoto_filename = os.path.join(WORK_VOLUME, 'odm_orthophoto', 'odm_orthophoto.tif')
         name = get_orthophoto_name(spatial_source['Name'], metadata)
-        print('Uploading orthophoto "{}" ...'.format(name))
+        api.log(LogLevel.Info, 'Uploading orthophoto "{}" ...'.format(name))
 
         content_item = api.upload_content_item(orthophoto_filename)
         content_item_id = content_item['ContentID']
 
-        print('Creating orthophoto spatial source with ContentItemId {} ...'.format(
+        api.log(LogLevel.Info, 'Creating orthophoto spatial source with ContentItemId {} ...'.format(
             content_item_id))
 
         spatial_source = api.post_spatial_source(
@@ -236,13 +228,13 @@ def start(args: Dict) -> None:
         
         spatial_source_id = spatial_source['UID']
 
-        print('Adding metadata as additional document to SpatialSourceId {} ...'.format(
+        api.log(LogLevel.Info, 'Adding metadata as additional document to SpatialSourceId {} ...'.format(
             spatial_source_id))
 
         api.post_additional_document(
             spatial_source_id, metadata_id, type='Metadata', descr='Flight metadata')
 
-        print('Generating DDILayer "{}" ...'.format(name))
+        api.log(LogLevel.Info, 'Generating DDILayer "{}" ...'.format(name))
 
         api.post_ddi_layer(
             project_id=project_id,
@@ -256,7 +248,7 @@ def start(args: Dict) -> None:
             dsm_filename = os.path.join(
                 WORK_VOLUME, 'odm_dem', 'dsm.tif')
 
-            print('Uploading DSM...')
+            api.log(LogLevel.Info, 'Uploading DSM...')
 
             dsm_content_item = api.upload_content_item(dsm_filename)
             dsm_content_item_id = dsm_content_item['ContentID']
@@ -268,7 +260,7 @@ def start(args: Dict) -> None:
             point_cloud_filename = os.path.join(
                 WORK_VOLUME, 'odm_georeferencing', 'odm_georeferenced_model.laz')
 
-            print('Uploading LAZ point cloud...')
+            api.log(LogLevel.Info, 'Uploading LAZ point cloud...')
 
             point_cloud = api.upload_content_item(point_cloud_filename)
             point_cloud_id = point_cloud['ContentID']
@@ -276,18 +268,16 @@ def start(args: Dict) -> None:
             api.post_additional_document(
                 spatial_source_id, point_cloud_id, type='PointCloud', descr='Point Cloud in LAZ format')
 
-        print('Successfully uploaded! Finished!')
+        api.log(LogLevel.Info, 'Successfully uploaded everything! Finished!')
 
     except Its4landException as err:
-        print(err.error)
-        print(err.content)
+        api.log(LogLevel.Error, 'error', err.error, err.content)
 
         traceback.print_exc()
         exit(2)
     except Exception as err:
         # TODO better error handling
-        print('Oopsie!')
-        print(err)
+        api.log(LogLevel.Error, 'Oopsie', err)
         traceback.print_exc()
         exit(1)
 

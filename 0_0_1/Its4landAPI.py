@@ -60,6 +60,12 @@ class ResponseType(Enum):
     html = 3
     stream = 4
 
+class LogLevel(Enum):
+    Debug = 'Debug'
+    Info = 'Info'
+    Error = 'Error'
+    Warn = 'Warning'
+
 
 Payload = Dict[str, Any]
 
@@ -346,3 +352,22 @@ class Its4landAPI:
                 f.write(chunk)
 
         return filename
+
+    def log(self, level: LogLevel = LogLevel.Debug, *msgs, log_src: str = 'UAV Ortho Generator Tool'):
+        pid = os.getenv('I4L_PROCESSUID')
+
+        msg = ' '.join([str(m) for m in msgs])
+
+        if pid is None:
+            print('[{}] {}'.format(level, msg))
+            return None
+
+        print('[{}] [{}] {}'.format(level, pid, msg))
+
+        path = os.path.join('processes', pid, 'log')
+
+        return self.post({
+            'LogMsg': msg,
+            'LogSource': log_src,
+            'LogLevel': str(level)
+        }, encode_as='json', url=urljoin(self.url, path))
