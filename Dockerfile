@@ -31,8 +31,3 @@ ENV TOOL_VERSION 0_0_1
 COPY ${TOOL_VERSION} /app/publishandshare/${TOOL_NAME}/${TOOL_VERSION}
 
 ENTRYPOINT [ "python3", "-u", "/app/publishandshare/wrapper.py" ]
-
-# ENTRYPOINT [ "python3", "/app/publishandshare/flyandcreate/0_0_1/entrypoints.py" ]
-
-# example usage:
-# docker flyandcreate --texturing-nadir-weight urban --content-item-id 50c4e5fe-0017-4dc3-93a6-983896839efa --project-id 8d377f30-d244-41b9-9f97-39a711b4679a
