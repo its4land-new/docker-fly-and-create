@@ -193,7 +193,7 @@ def start(args: Dict) -> None:
             print('downloading zip')
             api.download_content_item(spatial_source['ContentItem'], downloaded_filename)
 
-        # unzip(downloaded_filename, extracted_dirname)
+        unzip(downloaded_filename, extracted_dirname)
 
         list_files(WORK_VOLUME)
 
@@ -208,8 +208,9 @@ def start(args: Dict) -> None:
         print('Processing ...'.format())
 
         returncode = subprocess.call(['python', '/code/run.py', *stringify_args(odm_args)],
-                                     # stdout=subprocess.PIPE,
-                                     stderr=subprocess.PIPE)
+                                    #  stdout=subprocess.PIPE,
+                                    #  stderr=subprocess.PIPE
+                                    )
 
         if returncode != 0:
             raise Exception('Called ODM and received return code: %s' % str(returncode))
