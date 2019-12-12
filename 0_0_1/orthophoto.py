@@ -90,11 +90,6 @@ def to_odm_args(args: Dict[str, str], image_max_side_size: int) -> Dict[str, Any
     defaults['min_num_features'] = defaults['min_num_features']
     defaults['project_path'] = PROJECT_PATH
 
-    if defaults['dsm'] or defaults['pc_las']:
-        defaults['fast_orthophoto'] = False
-    else:
-        defaults['fast_orthophoto'] = True
-
     if defaults['georeferencing'] == 'EXIF':
         defaults['use_exif'] = True
     elif defaults['georeferencing'] == 'GCP':
