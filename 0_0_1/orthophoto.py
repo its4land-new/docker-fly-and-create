@@ -203,7 +203,7 @@ def start(args: Dict) -> None:
                                     )
 
         if returncode != 0:
-            msg = 'Called ODM and received return code: %s' % str(returncode)
+            msg = 'ERROR: Called ODM and received return code: %s' % str(returncode)
             api.log(LogLevel.Error, msg)
             raise Exception(msg)
 
@@ -271,13 +271,13 @@ def start(args: Dict) -> None:
         api.log(LogLevel.Info, 'Successfully uploaded everything! Finished!')
 
     except Its4landException as err:
-        api.log(LogLevel.Error, 'error', err.error, err.content)
+        api.log(LogLevel.Error, 'ERROR: ', err.error, err.content)
 
         traceback.print_exc()
         exit(2)
     except Exception as err:
         # TODO better error handling
-        api.log(LogLevel.Error, 'Oopsie', err)
+        api.log(LogLevel.Error, 'ERROR: ', err)
         traceback.print_exc()
         exit(1)
 
