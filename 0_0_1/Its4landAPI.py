@@ -29,6 +29,7 @@ from enum import Enum
 from urllib.parse import (urljoin, quote)
 import os
 
+import requests
 from requests import (request, exceptions)
 
 DEBUG = False
@@ -120,6 +121,11 @@ class Its4landAPI:
         self.response_type = response_type
         self.session_token = ''
 
+        adapter = requests.adapters.HTTPAdapter(max_retries=5)
+
+        self.sess = requests.Session()
+        self.sess.mount(url, adapter)
+
     def get(self, *argv, **kwargs):
         return self.request('GET', *argv, **kwargs)
 
@@ -174,7 +180,7 @@ class Its4landAPI:
                         raise Exception(url, 998, 'Unable to open file: %s' % v, e)
 
             print([method, url, send_data])
-            resp = request(method, url, **send_data)
+            resp = self.sess.request(method, url, **send_data)
 
             if DEBUG:
                 import curlify
